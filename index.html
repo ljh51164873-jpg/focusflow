@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f19">
+<title>FocusFlow 모바일 · 1단계 테스트</title>
+<style>
+  :root {
+    --bg: #0b0f19; --card: #131b2e; --line: #1e293b; --text: #f8fafc; --sub: #94a3b8;
+    --good: #22c55e; --warn: #f59e0b; --bad: #ef4444; --blue: #38bdf8; --purple: #c084fc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif; font-size: 14px;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 18px; margin: 4px 0 2px; color: var(--blue); }
+  .sub { color: var(--sub); font-size: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 10px; }
+  .card h2 { font-size: 14px; margin: 0 0 8px; }
+
+  #stage { position: relative; width: 100%; background: #020617; border-radius: 10px; overflow: hidden; aspect-ratio: 3 / 4; }
+  #stage video, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #stage .placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--sub); text-align: center; padding: 20px; }
+
+  .btn { width: 100%; border: 0; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 700; color: white; background: var(--good); margin-top: 10px; }
+  .btn.stop { background: var(--bad); }
+  .btn:disabled { background: #334155; color: #64748b; }
+
+  .chips { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .chip { background: #0f1629; border-radius: 8px; padding: 8px 10px; border-left: 4px solid #334155; }
+  .chip .k { color: var(--sub); font-size: 12px; }
+  .chip .v { font-size: 15px; font-weight: 700; margin-top: 2px; }
+  .chip.good { border-left-color: var(--good); }
+  .chip.warn { border-left-color: var(--warn); }
+  .chip.bad  { border-left-color: var(--bad); }
+
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; }
+  .row b { font-variant-numeric: tabular-nums; }
+  select, input[type=checkbox] { accent-color: var(--blue); }
+  select { background: #020617; color: white; border: 1px solid #334155; border-radius: 6px; padding: 6px; font-size: 14px; }
+  label.opt { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+
+  #log { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow-y: auto; font-size: 12px; color: #cbd5e1; }
+  #log li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  #error { display: none; background: #450a0a; border: 1px solid var(--bad); color: #fecaca; border-radius: 10px; padding: 10px; margin-top: 10px; font-size: 12px; white-space: pre-wrap; }
+  #toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: rgba(15,22,41,.95); border: 2px solid var(--blue);
+           border-radius: 10px; padding: 10px 16px; font-weight: 700; display: none; z-index: 10; max-width: 90vw; text-align: center; }
+  ol.check { margin: 0; padding-left: 18px; color: #cbd5e1; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <h1>⚡ FocusFlow 모바일</h1>
+  <div class="sub">1단계 테스트 · 폰에서 카메라와 AI 인식이 잘 되는지 확인해요</div>
+
+  <div id="error"></div>
+  <div id="toast"></div>
+
+  <div class="card">
+    <div id="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="canvas"></canvas>
+      <div class="placeholder" id="placeholder">AI 모델을 불러오는 중…<br>(처음 한 번은 10~30초 걸릴 수 있어요)</div>
+    </div>
+    <button class="btn" id="startBtn" disabled>모델 불러오는 중…</button>
+  </div>
+
+  <div class="card">
+    <h2>🔍 인식 상태</h2>
+    <div class="chips">
+      <div class="chip" id="c-face"><div class="k">얼굴</div><div class="v">-</div></div>
+      <div class="chip" id="c-pose"><div class="k">자세 (양 어깨)</div><div class="v">-</div></div>
+      <div class="chip" id="c-hand"><div class="k">손</div><div class="v">-</div></div>
+      <div class="chip" id="c-eye"><div class="k">눈 감김 (졸음)</div><div class="v">-</div></div>
+      <div class="chip" id="c-turn"><div class="k">고개 돌림 (한눈팔기)</div><div class="v">-</div></div>
+      <div class="chip" id="c-mouth"><div class="k">손 → 입 (얼굴 만지기)</div><div class="v">-</div></div>
+      <div class="chip" id="c-leave"><div class="k">앱 이탈 (= 폰 딴짓)</div><div class="v">0회</div></div>
+      <div class="chip" id="c-wake"><div class="k">화면 꺼짐 방지</div><div class="v">-</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⚙️ 성능 (발열·속도 확인용)</h2>
+    <div class="row"><span>처리 속도</span><b id="p-fps">-</b></div>
+    <div class="row"><span>인식 시간 (얼굴 / 자세 / 손)</span><b id="p-ms">-</b></div>
+    <div class="row"><span>연산 장치</span><b id="p-dev">-</b></div>
+    <div class="row"><span>폰 배터리 변화</span><b id="p-bat">-</b></div>
+    <div class="row"><span>테스트 경과 시간</span><b id="p-time">-</b></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:8px 0">
+    <label class="opt">목표 처리 속도
+      <select id="targetFps">
+        <option value="0">최대</option>
+        <option value="15">초당 15번</option>
+        <option value="10" selected>초당 10번 (추천)</option>
+        <option value="5">초당 5번 (절전)</option>
+      </select>
+    </label>
+    <label class="opt"><input type="checkbox" id="optPose" checked> 자세 인식 켜기</label>
+    <label class="opt"><input type="checkbox" id="optHand" checked> 손 인식 켜기</label>
+    <label class="opt"><input type="checkbox" id="optDraw" checked> 화면에 인식 점 그리기</label>
+  </div>
+
+  <div class="card">
+    <h2>✅ 이렇게 테스트해 보세요</h2>
+    <ol class="check">
+      <li>폰을 책상에 세우고, 얼굴과 <b>양 어깨</b>가 화면에 들어오게 두기</li>
+      <li>눈을 2초 감기 → "눈 감김"이 빨간색이 되는지</li>
+      <li>고개를 옆으로 돌리기 → "고개 돌림"이 바뀌는지</li>
+      <li>손가락을 입에 대기 → "손 → 입"이 바뀌는지</li>
+      <li>홈 버튼으로 나갔다 오기 → "앱 이탈" 횟수가 오르는지</li>
+      <li>10분 켜두고 처리 속도, 배터리 변화, 폰 발열 확인</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>📋 기록</h2>
+    <ul id="log"></ul>
+  </div>
+
+<script type="module">
+import {
+  FilesetResolver, FaceLandmarker, PoseLandmarker, HandLandmarker, DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs";
+
+const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm";
+const MODELS = {
+  face: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+  pose: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+  hand: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+};
+
+// 판정 기준 (PC 버전과 같은 원리)
+const EYE_CLOSED_SCORE = 0.5;   // 눈 깜빡임 점수 (0~1) 평균이 이보다 크면 눈 감음
+const SLEEP_SEC = 1.5;          // 눈 감음이 1.5초 이상 이어지면 졸음
+const TURN_RATIO = 3.0;         // 코~얼굴 양끝 거리 비율이 3배 이상이면 고개 돌림
+const MOUTH_DIST = 0.06;        // 검지·엄지 끝과 입 사이 거리 (화면 비율)
+
+const $ = (id) => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+const startBtn = $("startBtn");
+
+let face = null, pose = null, hand = null, device = "GPU";
+let running = false, stream = null, wakeLock = null;
+let lastProcess = 0, frameCount = 0, fpsTimer = performance.now(), tick = 0;
+let msFace = 0, msPose = 0, msHand = 0;
+let eyeClosedSince = null, leaveCount = 0, leftAt = null;
+let startTime = null, startBattery = null, batteryObj = null;
+
+// ---------- 화면 도우미 ----------
+function showError(msg) { const e = $("error"); e.style.display = "block"; e.textContent = "⚠️ " + msg; }
+function log(msg) {
+  const li = document.createElement("li");
+  li.textContent = `${new Date().toLocaleTimeString("ko-KR")}  ${msg}`;
+  $("log").prepend(li);
+}
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.style.display = "none"), 3000);
+  if (navigator.vibrate) navigator.vibrate(150);
+}
+function chip(id, text, level) {
+  const c = $(id); c.querySelector(".v").textContent = text;
+  c.classList.remove("good", "warn", "bad"); if (level) c.classList.add(level);
+}
+window.addEventListener("error", (e) => showError(e.message));
+window.addEventListener("unhandledrejection", (e) => showError(String(e.reason)));
+
+// ---------- 모델 불러오기 (GPU 실패 시 CPU로) ----------
+async function createAll(delegate) {
+  const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+  const base = (path) => ({ modelAssetPath: path, delegate });
+  const f = await FaceLandmarker.createFromOptions(vision, {
+    baseOptions: base(MODELS.face), runningMode: "VIDEO", numFaces: 1, outputFaceBlendshapes: true,
+  });
+  const p = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: base(MODELS.pose), runningMode: "VIDEO", numPoses: 1,
+  });
+  const h = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: base(MODELS.hand), runningMode: "VIDEO", numHands: 2,
+  });
+  return [f, p, h];
+}
+
+async function loadModels() {
+  try {
+    [face, pose, hand] = await createAll("GPU");
+    device = "GPU";
+  } catch (err) {
+    log("GPU를 쓸 수 없어서 CPU로 다시 불러와요: " + err.message);
+    [face, pose, hand] = await createAll("CPU");
+    device = "CPU";
+  }
+  $("p-dev").textContent = device;
+  $("placeholder").innerHTML = "준비 완료!<br>아래 버튼을 눌러 카메라를 켜세요";
+  startBtn.disabled = false; startBtn.textContent = "▶ 카메라 켜고 테스트 시작";
+  log(`AI 모델 3개 불러오기 완료 (${device})`);
+}
+
+// ---------- 시작 / 정지 ----------
+async function start() {
+  if (!window.isSecureContext) {
+    showError("카메라는 https:// 주소에서만 켜져요. GitHub Pages 주소로 접속했는지 확인해 주세요.");
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false,
+    });
+  } catch (err) {
+    showError("카메라를 켤 수 없어요: " + err.message + "\n크롬 주소창 왼쪽 자물쇠 → 권한 → 카메라 '허용'을 확인해 주세요.");
+    return;
+  }
+  video.srcObject = stream;
+  await video.play();
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  $("stage").style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+  $("placeholder").style.display = "none";
+
+  running = true; startTime = Date.now();
+  startBtn.textContent = "■ 테스트 정지"; startBtn.classList.add("stop");
+  await requestWakeLock();
+  await initBattery();
+  log(`카메라 시작 (${video.videoWidth}×${video.videoHeight})`);
+  requestAnimationFrame(loop);
+}
+
+function stop() {
+  running = false;
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  startBtn.textContent = "▶ 다시 시작"; startBtn.classList.remove("stop");
+  log("테스트 정지");
+}
+startBtn.addEventListener("click", () => (running ? stop() : start()));
+
+// ---------- 화면 꺼짐 방지 ----------
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) { chip("c-wake", "지원 안 됨", "warn"); return; }
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    chip("c-wake", "켜짐", "good");
+    wakeLock.addEventListener("release", () => chip("c-wake", "해제됨", "warn"));
+  } catch (err) { chip("c-wake", "실패", "bad"); log("화면 꺼짐 방지 실패: " + err.message); }
+}
+
+// ---------- 배터리 (발열·소모 확인) ----------
+async function initBattery() {
+  if (!navigator.getBattery) { $("p-bat").textContent = "확인 불가"; return; }
+  batteryObj = await navigator.getBattery();
+  startBattery = batteryObj.level;
+}
+
+// ---------- 앱 이탈 = 폰 딴짓 ----------
+document.addEventListener("visibilitychange", async () => {
+  if (!running) return;
+  if (document.hidden) {
+    leftAt = Date.now();
+  } else if (leftAt) {
+    const sec = Math.round((Date.now() - leftAt) / 1000);
+    leaveCount++; leftAt = null;
+    chip("c-leave", `${leaveCount}회`, leaveCount ? "warn" : null);
+    log(`📱 앱 이탈 ${sec}초 (다른 앱 사용 = 딴짓으로 기록)`);
+    toast(`돌아왔어요! ${sec}초 동안 앱을 벗어났어요`);
+    await requestWakeLock();   // 나갔다 오면 화면 꺼짐 방지가 풀리므로 다시 요청
+  }
+});
+
+// ---------- 메인 루프 ----------
+function loop(now) {
+  if (!running) return;
+  requestAnimationFrame(loop);
+  const target = Number($("targetFps").value);
+  if (target && now - lastProcess < 1000 / target) return;
+  if (video.readyState < 2) return;
+  lastProcess = now; tick++;
+
+  const ts = performance.now();
+  let t0 = performance.now();
+  const fr = face.detectForVideo(video, ts);
+  msFace = performance.now() - t0;
+
+  let pr = null, hr = null;
+  // 부담을 줄이려고 자세와 손은 번갈아 인식
+  if ($("optPose").checked && tick % 2 === 0) {
+    t0 = performance.now(); pr = pose.detectForVideo(video, ts); msPose = performance.now() - t0;
+    loop.lastPose = pr;
+  } else if ($("optPose").checked) pr = loop.lastPose || null;
+  if ($("optHand").checked && tick % 2 === 1) {
+    t0 = performance.now(); hr = hand.detectForVideo(video, ts); msHand = performance.now() - t0;
+    loop.lastHand = hr;
+  } else if ($("optHand").checked) hr = loop.lastHand || null;
+
+  analyze(fr, pr, hr);
+  draw(fr, pr, hr);
+  updatePerf(now);
+}
+
+// ---------- 판정 ----------
+function analyze(fr, pr, hr) {
+  const fl = fr.faceLandmarks && fr.faceLandmarks[0];
+  chip("c-face", fl ? "인식됨" : "안 보임", fl ? "good" : "bad");
+
+  // 자세: 양 어깨(11, 12)가 보이는지
+  const pl = pr && pr.landmarks && pr.landmarks[0];
+  if (!$("optPose").checked) chip("c-pose", "꺼짐", null);
+  else if (pl) {
+    const ok = (pl[11].visibility ?? 1) > 0.5 && (pl[12].visibility ?? 1) > 0.5;
+    chip("c-pose", ok ? "양 어깨 보임" : "어깨가 잘림", ok ? "good" : "warn");
+  } else chip("c-pose", "안 보임", "bad");
+
+  const hands = (hr && hr.landmarks) || [];
+  chip("c-hand", !$("optHand").checked ? "꺼짐" : `${hands.length}개`, hands.length ? "good" : null);
+
+  if (!fl) { chip("c-eye", "-", null); chip("c-turn", "-", null); chip("c-mouth", "-", null); eyeClosedSince = null; return; }
+
+  // 눈 감김: 얼굴 표정 점수(eyeBlinkLeft/Right) 사용
+  const cats = (fr.faceBlendshapes && fr.faceBlendshapes[0] && fr.faceBlendshapes[0].categories) || [];
+  const score = (name) => (cats.find((c) => c.categoryName === name) || { score: 0 }).score;
+  const blink = (score("eyeBlinkLeft") + score("eyeBlinkRight")) / 2;
+  if (blink > EYE_CLOSED_SCORE) {
+    eyeClosedSince = eyeClosedSince || performance.now();
+    const sec = (performance.now() - eyeClosedSince) / 1000;
+    if (sec >= SLEEP_SEC) {
+      if (!analyze.sleepLogged) { log("💤 졸음 감지 (눈 감음 " + sec.toFixed(1) + "초)"); analyze.sleepLogged = true; }
+      chip("c-eye", `졸음! ${sec.toFixed(1)}초`, "bad");
+    } else chip("c-eye", `감음 ${(blink * 100).toFixed(0)}%`, "warn");
+  } else {
+    eyeClosedSince = null; analyze.sleepLogged = false;
+    chip("c-eye", `뜸 (${(blink * 100).toFixed(0)}%)`, "good");
+  }
+
+  // 고개 돌림: 코(1)에서 얼굴 양끝(234, 454)까지 거리 비율
+  const dl = Math.abs(fl[1].x - fl[234].x), dr = Math.max(Math.abs(fl[454].x - fl[1].x), 0.001);
+  const ratio = dl / dr;
+  const turned = ratio > TURN_RATIO || ratio < 1 / TURN_RATIO;
+  chip("c-turn", turned ? "돌림!" : `정면 (${ratio.toFixed(2)})`, turned ? "bad" : "good");
+
+  // 손 → 입: 검지 끝(8)·엄지 끝(4)과 입(13) 거리
+  let near = false;
+  for (const h of hands) {
+    for (const i of [4, 8]) {
+      if (Math.hypot(h[i].x - fl[13].x, h[i].y - fl[13].y) < MOUTH_DIST) near = true;
+    }
+  }
+  chip("c-mouth", near ? "입 근처!" : "아님", near ? "bad" : "good");
+}
+
+// ---------- 그리기 ----------
+const drawer = new DrawingUtils(ctx);
+function draw(fr, pr, hr) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!$("optDraw").checked) return;
+  const fl = fr.faceLandmarks && fr.faceLandmarks[0];
+  if (fl) {
+    for (const conn of [FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+                        FaceLandmarker.FACE_LANDMARKS_LIPS, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL]) {
+      drawer.drawConnectors(fl, conn, { color: "#38bdf8", lineWidth: 1.5 });
+    }
+  }
+  const pl = pr && pr.landmarks && pr.landmarks[0];
+  if (pl) drawer.drawConnectors(pl, PoseLandmarker.POSE_CONNECTIONS, { color: "#c084fc", lineWidth: 2 });
+  for (const h of (hr && hr.landmarks) || []) {
+    drawer.drawConnectors(h, HandLandmarker.HAND_CONNECTIONS, { color: "#22c55e", lineWidth: 2 });
+  }
+}
+
+// ---------- 성능 표시 ----------
+function updatePerf(now) {
+  frameCount++;
+  if (now - fpsTimer >= 1000) {
+    $("p-fps").textContent = `초당 ${(frameCount * 1000 / (now - fpsTimer)).toFixed(1)}번`;
+    frameCount = 0; fpsTimer = now;
+    $("p-ms").textContent = `${msFace.toFixed(0)} / ${msPose.toFixed(0)} / ${msHand.toFixed(0)} ms`;
+    const sec = Math.floor((Date.now() - startTime) / 1000);
+    $("p-time").textContent = `${Math.floor(sec / 60)}분 ${sec % 60}초`;
+    if (batteryObj && startBattery != null) {
+      const drop = (startBattery - batteryObj.level) * 100;
+      $("p-bat").textContent = `${(batteryObj.level * 100).toFixed(0)}% (${drop >= 0 ? "−" : "+"}${Math.abs(drop).toFixed(0)}%p)${batteryObj.charging ? " · 충전 중" : ""}`;
+    }
+  }
+}
+
+loadModels().catch((err) => showError("AI 모델을 불러오지 못했어요: " + err.message + "\n와이파이 연결을 확인하고 새로고침해 주세요."));
+</script>
+</body>
+</html>
